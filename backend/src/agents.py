@@ -20,10 +20,9 @@ import httpx
 from pydantic import BaseModel, Field
 
 from pydantic_ai import Agent, RunContext, ImageUrl, BinaryContent
-from pydantic_ai.providers.google_gla import GoogleGLAProvider
+from pydantic_ai.providers.google_vertex import GoogleVertexProvider
 from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.mcp import MCPServerStdio
-from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.usage import Usage, UsageLimits
 
@@ -32,8 +31,8 @@ import dotenv
 dotenv.load_dotenv()
 
 model = GeminiModel(
-    "gemini-2.5-flash-preview-04-17",
-    provider=GoogleGLAProvider(api_key=os.getenv("GEMINI_API_KEY")),
+    "gemini-2.5-pro",
+    provider=GoogleVertexProvider(),
 )
 # model = OpenAIModel("gpt-4.1-mini")
 
@@ -143,24 +142,6 @@ code_agent = Agent(
     ),
 )
 
-# 2. Web Search Agent
-search_agent = Agent(
-    model=model,
-    mcp_servers=[mcp_fetch],
-    tools=[duckduckgo_search_tool()],
-    deps_type=SharedContext,
-    output_type=SearchResult,
-    retries=3,
-    system_prompt=(
-        "You are a web search expert that finds accurate information online.\n\n"
-        "IMPORTANT FORMATTING INSTRUCTIONS:\n"
-        "- You MUST provide your answer in the structured SearchResult format\n"
-        "- The 'answer' field must contain a comprehensive answer to the query\n"
-        "- The 'sources' field should list the URLs of the sources you used\n"
-        "- Always cite your sources and provide accurate information\n"
-    ),
-)
-
 # 3. Image Analysis Agent
 image_agent = Agent(
     model=model,
@@ -255,11 +236,6 @@ main_agent = Agent(
         "   - When user needs help with Python programming\n"
         "   - When user asks about Python code execution or debugging\n"
         "   - NOTE: This expert ONLY supports Python code\n\n"
-        "2. Web Search Expert (web_search_expert tool):\n"
-        "   - When user asks about current events or real-time information\n"
-        "   - When user needs factual information you're not confident about\n"
-        "   - When user explicitly asks to search for something\n\n"
-        "   - When user asks to fetch information from a website\n\n"
         "3. Image Expert (image_expert tool):\n"
         "   - ANY TIME the user uploads an image (current_image_path exists in context)\n"
         "   - This is your HIGHEST PRIORITY - if an image is present, ALWAYS analyze it\n"
@@ -327,22 +303,6 @@ async def code_expert(ctx: RunContext[SharedContext], coding_task: str) -> CodeR
     )
     return result.output
 
-
-@main_agent.tool
-async def web_search_expert(
-    ctx: RunContext[SharedContext], search_query: str
-) -> SearchResult:
-    """Delegate search tasks to the specialized search agent.
-
-    Args:
-        search_query: The search query
-    """
-    result = await search_agent.run(
-        search_query,
-        deps=ctx.deps,  # Pass the same deps
-        usage=ctx.usage,  # Share usage tracking
-    )
-    return result.output
 
 
 @main_agent.tool
@@ -413,10 +373,6 @@ main_agent_stream = Agent(
         "   - When user needs help with Python programming\n"
         "   - When user asks about Python code execution or debugging\n"
         "   - NOTE: This expert ONLY supports Python code\n\n"
-        "2. Web Search Expert (web_search_expert tool):\n"
-        "   - When user asks about current events or real-time information\n"
-        "   - When user needs factual information you're not confident about\n"
-        "   - When user explicitly asks to search for something\n\n"
         "3. Image Expert (image_expert tool):\n"
         "   - ANY TIME the user uploads an image (current_image_path exists in context)\n"
         "   - This is your HIGHEST PRIORITY - if an image is present, ALWAYS analyze it\n"
@@ -442,7 +398,6 @@ main_agent_stream = Agent(
 # Add the same tools to the streaming agent
 main_agent_stream.system_prompt(personalized_context)
 main_agent_stream.tool(code_expert)
-main_agent_stream.tool(web_search_expert)
 main_agent_stream.tool(image_expert)
 
 
