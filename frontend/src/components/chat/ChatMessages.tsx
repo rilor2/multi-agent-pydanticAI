@@ -64,10 +64,9 @@ export default function ChatMessages({ messages, isLoading, error, messagesEndRe
         </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center', maxWidth: '600px' }}>
           {[
-            'What are news about AI in the last 24 hours?',
-            'How do I use Pydantic with FastAPI?',
-            'Explain Python type hints',
-            'Show me a FastAPI CRUD example'
+            'I want a new chair for my living room',
+            'Inspiring kitchen ideas',
+            'Sofa bed for five people'
           ].map((prompt) => (
             <Button
               key={prompt}

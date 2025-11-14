@@ -34,7 +34,6 @@ model = GeminiModel(
     "gemini-2.5-pro",
     provider=GoogleVertexProvider(),
 )
-# model = OpenAIModel("gpt-4.1-mini")
 
 
 # ===================================================
@@ -82,6 +81,19 @@ class ImageAnalysisResult(BaseModel):
     )
     scene_type: str = Field(description="Type of scene (indoor, outdoor, etc.)")
 
+class OrderResult(BaseModel):
+    """Result from the order placement"""
+    description: str = Field(description="Detailed instruction for checkout")
+    client_details: str = Field(description="name, surname and email")
+    delivery_details: str = Field(description="delivery address")
+    payment_method: str = Field(description="payment method to use", default="EXPRESS") 
+
+class CatalogResult(BaseModel):
+    """Result from the catalog search"""
+    description: str = Field(description="Detailed description of the object to search")
+    objects: list[str] = Field(
+        description="Furniture names according to Ikea", default_factory=list
+    )
 
 class MainAgentResult(BaseModel):
     """Overall result from the main agent"""
@@ -98,6 +110,13 @@ class MainAgentResult(BaseModel):
     code_result: CodeResult = Field(
         description="Result from the Python code agent if used", default=None
     )
+    catalog_result: CatalogResult = Field(
+        description="Result from the catalog agent if used", default=None
+    )
+    order_result: OrderResult = Field(
+        description="Result from the order agent if used", default=None
+    ) 
+
 
 
 # ===================================================
@@ -163,7 +182,42 @@ image_agent = Agent(
     ),
 )
 
+catalog_agent = Agent(
+    model=model, 
+    deps_type=SharedContext,
+    output_type=CatalogResult,
+    retries=3,
+    system_prompt=(
+        "You are an Ikea sales expert. You will receive the name of a piece of furniture to look for.\n\n"
+        "When you receive name of the furniture:\n"
+        "1. Analyze the name\n"
+        "2. Provide a detailed description from the Ikea website\n"
+        "3. List the option you can get\n"
+        "IMPORTANT FORMATTING INSTRUCTIONS:\n"
+        "- You MUST provide your answer in the structured CatalogResult format\n"
+        "- The 'description' field must contain a detailed description of the furniture\n"
+        "- The 'objects' field should list possible furniture candidates\n"
+    ), 
+)
 
+order_agent = Agent(
+    model=model,
+    deps_type=SharedContext,
+    output_type=OrderResult,
+    retries=3,
+    system_prompt=(
+        "You are an Order system. You will receive the ikea name of the furniture to buy.\n\n"
+        "When you receive name of the furniture, we simulate opening an order in our system, payment method will be EXPRESS:\n"
+        "1. Provide user details, name, surname and email\n"
+        "2. Provide delivery destination"
+        "IMPORTANT FORMATTING INSTRUCTIONS:\n"
+        "- You MUST provide your answer in the structured OrderResult format\n"
+        "- The 'client_details' field should contain user details, name, surname and email, space separated\n"
+        "- The 'delivery_details' field should contain user details, name, surname and email, space separated\n"
+        "- The 'payment_method' field will always be EXPRESS, NOT ANY OTHER value\n" 
+
+    ),  
+)
 # ===================================================
 # IMAGE HANDLING FUNCTIONS (DIRECT UTILITIES)
 # ===================================================
@@ -235,26 +289,23 @@ main_agent = Agent(
         "   - When user explicitly asks for Python code\n"
         "   - When user needs help with Python programming\n"
         "   - When user asks about Python code execution or debugging\n"
-        "   - NOTE: This expert ONLY supports Python code\n\n"
-        "3. Image Expert (image_expert tool):\n"
-        "   - ANY TIME the user uploads an image (current_image_path exists in context)\n"
-        "   - This is your HIGHEST PRIORITY - if an image is present, ALWAYS analyze it\n"
-        "   - NEVER ignore an uploaded image even if the user doesn't specifically ask about it\n"
-        "   - The first step in your response should ALWAYS be to analyze any uploaded image\n"
-        "   - When user mentions an image, URL, picture, or photo\n"
-        "   - When user asks you to look at/analyze/describe an image\n\n"
-        "IMAGE HANDLING RULES:\n"
-        "   1. If current_image_path exists in context, you MUST use image_expert to analyze it\n"
-        "   2. Always begin your answer by acknowledging and describing the image\n"
-        "   3. Even if the user asks something unrelated, still analyze the image first\n"
-        "   4. Never ask 'what would you like to know about this image' - just analyze it\n\n"
+        "   - NOTE: This expert ONLY supports Python code\n\n" 
+        "2. Catalog expert(catalog_expert tool):\n"
+        "   - When user explicitly asks for buying a furniture\n"
+        "   - When user needs help with furniture ordering \n"
+        "   - When users has ANY questions about house, furnitures, office or anything else"
+        "   - NOTE: we are Ikea biased, we ONLY sell ikea products"
+        "3. Order expert(order_expert tool):\n"
+        "   - When user explicitly asks for ordering a specific Ikea furniture by Ikea name\n"
+        "   - When user select an Ikea item to buy or to get\n"
         "IMPORTANT: For general conversation, greetings, or simple questions, DO NOT use any specialized tools.\n\n"
         "CRITICAL OUTPUT INSTRUCTION:\n"
         "The user will ONLY see the 'answer' field of your response.\n"
         "You MUST always compose a fully self-contained answer in the 'answer' field, summarizing and including all important details from any sub-agent results (code, search, image).\n"
         "NEVER assume the user can see the structured output or any fields other than 'answer'.\n"
         "If you use a specialized agent, always clearly explain its results in the 'answer' field, including code, explanations, search findings, and image analysis as appropriate.\n\n"
-        "When you use a specialized agent, you MUST also include its result in the corresponding field (search_result, code_result, or image_analysis_result) of the MainAgentResult object, as well as summarizing it in the answer field. Never leave these fields empty if you used a sub-agent.\n\n"
+        "When you use a specialized agent, you MUST also include its result in the corresponding field (search_result, code_result, catalog_result, order_result or image_analysis_result) of the MainAgentResult object, as well as summarizing it in the answer field. Never leave these fields empty if you used a sub-agent.\n\n"
+        "Once you display a list of furniture, ask the user if he wants to proceed with the order"
     ),
 )
 
@@ -270,16 +321,7 @@ def personalized_context(ctx: RunContext[SharedContext]) -> str:
         f"Today's date is {today}.\n"
         f"You are speaking with {ctx.deps.username}, who prefers {ctx.deps.preferences['style']} responses.\n"
         f"This is session {ctx.deps.session_id}."
-    )
-
-    # Add image context if available
-    if ctx.deps.current_image_path:
-        base_prompt += "\n\n*** IMPORTANT: THE USER HAS UPLOADED AN IMAGE ***\n"
-        base_prompt += f"Image located at: {ctx.deps.current_image_path}\n"
-        base_prompt += "You MUST analyze this image using the image_expert tool, regardless of what the user asks.\n"
-        base_prompt += "ALWAYS acknowledge the image in your response and provide analysis of it.\n"
-        base_prompt += "DO NOT ask the user what they want to know about the image - just analyze it fully."
-
+    )    
     return base_prompt
 
 
@@ -355,6 +397,51 @@ async def image_expert(
         scene_type="unknown",
     )
 
+@main_agent.tool
+async def catalog_expert(
+        ctx: RunContext[SharedContext], 
+        user_query: str
+) -> CatalogResult:
+    try: 
+        result = await catalog_agent.run(
+                        user_query,
+                        deps=ctx.deps,
+                        usage=ctx.usage,
+                )
+        print(result.output)
+        return result.output
+    except Exception as e:
+       return CatalogResult(
+            description=f"Error analysing catalog items: {str(e)}",
+            objects= []
+
+        ) 
+
+@main_agent.tool
+async def order_expert(
+    ctx: RunContext[SharedContext], user_query: str
+) -> OrderResult:
+    try:
+        print(user_query)
+        
+        message = (
+            f"Generate an order template with random client_details, "
+            f"delivery_details, and payment method set to EXPRESS."
+        )
+        result = await order_agent.run(
+            message,
+            deps=ctx.deps,
+            usage=ctx.usage,
+        )
+        return result.output
+
+    except Exception as e:
+       return CatalogResult(
+            description=f"Error analysing catalog items: {str(e)}",
+            objects= []
+
+        ) 
+
 
 # ===================================================
 # STREAMING AGENT
@@ -373,24 +460,21 @@ main_agent_stream = Agent(
         "   - When user needs help with Python programming\n"
         "   - When user asks about Python code execution or debugging\n"
         "   - NOTE: This expert ONLY supports Python code\n\n"
-        "3. Image Expert (image_expert tool):\n"
-        "   - ANY TIME the user uploads an image (current_image_path exists in context)\n"
-        "   - This is your HIGHEST PRIORITY - if an image is present, ALWAYS analyze it\n"
-        "   - NEVER ignore an uploaded image even if the user doesn't specifically ask about it\n"
-        "   - The first step in your response should ALWAYS be to analyze any uploaded image\n"
-        "   - When user mentions an image, URL, picture, or photo\n"
-        "   - When user asks you to look at/analyze/describe an image\n\n"
-        "IMAGE HANDLING RULES:\n"
-        "1. If current_image_path exists in context, you MUST use image_expert to analyze it\n"
-        "2. Always begin your answer by acknowledging and describing the image\n"
-        "3. Even if the user asks something unrelated, still analyze the image first\n"
-        "4. Never ask 'what would you like to know about this image' - just analyze it\n\n"
+        "2. Catalog expert(catalog_expert tool):\n"
+        "   - When user explicitly asks for buying a furniture\n"
+        "   - When user needs help with furniture ordering \n"
+        "   - When users has ANY questions about house, furnitures, office or anything else"
+        "   - NOTE: we are Ikea biased, we ONLY sell ikea products"
+        "3. Order expert(order_expert tool):\n"
+        "   - When user explicitly asks for ordering a specific Ikea furniture by Ikea name\n"
+        "   - When user select an Ikea item to buy or to get\n"
         "IMPORTANT: For general conversation, greetings, or simple questions, DO NOT use any specialized tools.\n"
         "Just respond naturally using your own knowledge.\n\n"
         "FORMATTING INSTRUCTIONS:\n"
         "- Provide your responses in natural, conversational text\n"
         "- When using specialist tools, incorporate their results naturally into your response\n"
         "- Make your responses engaging and informative\n"
+        "- Once you display a list of furniture, ask the user if he wants to proceed with the order"
     ),
 )
 
@@ -398,7 +482,8 @@ main_agent_stream = Agent(
 # Add the same tools to the streaming agent
 main_agent_stream.system_prompt(personalized_context)
 main_agent_stream.tool(code_expert)
-main_agent_stream.tool(image_expert)
+main_agent_stream.tool(catalog_expert)
+main_agent_stream.tool(order_expert)
 
 
 # ===================================================

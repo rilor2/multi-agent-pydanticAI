@@ -374,6 +374,7 @@ async def get_session_messages(session_id: str, db: Database = Depends(get_datab
     return messages
 
 
+
 @app.post("/api/sessions/{session_id}/clear")
 async def clear_session_messages(session_id: str, db: Database = Depends(get_database)):
     """Clear all messages for a session."""
@@ -423,6 +424,11 @@ async def chat(request: ChatRequest, db: Database = Depends(get_database)):
 
     # Save model response with metadata
     metadata = {}
+
+    if result["result"].catalog_result:
+        metadata["catalog_result"] = result["result"].catalog_result.dict()
+    if result["result"].order_result:
+       metadata["order_result"] = result["result"].order_result.dict() 
     if result["result"].code_result:
         metadata["code_result"] = result["result"].code_result.dict()
     if result["result"].search_result:
@@ -456,6 +462,8 @@ async def chat(request: ChatRequest, db: Database = Depends(get_database)):
             "code_result": result["result"].code_result,
             "search_result": result["result"].search_result,
             "image_analysis_result": result["result"].image_analysis_result,
+            "catalog_result": result["result"].catalog_result,
+            "order_result": result["result"].order_result 
         },
         "usage": result["usage"],
     }
@@ -534,6 +542,10 @@ async def chat_stream(request: ChatRequest, db: Database = Depends(get_database)
         if final_result:
             # Create metadata with code, search, and image results
             metadata = {}
+            if "catalog_result" in final_result and final_result["catalog_result"]:
+                metadata["catalog_result"] = final_result["catalog_result"]
+            if "order_result" in final_result and final_result["order_result"]:
+                metadata["order_result"] = final_result["order_result"]
             if "code_result" in final_result and final_result["code_result"]:
                 metadata["code_result"] = final_result["code_result"]
             if "search_result" in final_result and final_result["search_result"]:
