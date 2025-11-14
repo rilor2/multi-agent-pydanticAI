@@ -181,6 +181,171 @@ async def delete_session(session_id: str, db: Database = Depends(get_database)):
     await db.delete_session(session_id)
     return {"status": "deleted"}
 
+@app.get("/api/checkout/{retailUnit}/{channel}/express-options")
+async def get_express_options(retailUnit: str, channel: str, db: Database = Depends(get_database)):
+    mock_response = '''
+[
+    {
+        "paymentOptionId": "eac56dc1-60c9-4502-afe9-3e6c0dd4e531",
+        "optionCategory": "CREDITCARD",
+        "displayRule": "GROUP",
+        "displayType": "WALLET_TYPE",
+        "displayCategory": "APPLEPAY",
+        "isTokenizationEnabled": false,
+        "brands": [
+            {
+                "name": "VISA",
+                "walletType": null,
+                "pspBrandName": "VISA",
+                "gatewayMerchantId": "8a8394c73f133b85013f13df0135044b",
+                "integrity": null,
+                "tenderType": "VISA",
+                "supportedCardNetwork": "visa",
+                "icons": [
+                    "https://www.ikea.com/global/assets/logos/external-payment-providers/visa.svg"
+                ],
+                "participatingBanks": null,
+                "savedTokens": null,
+                "preSelected": true,
+                "captureMechanism": "DIRECT",
+                "psp": "ACI",
+                "displayBrandName": null,
+                "minValuePerTx": 0,
+                "maxValuePerTx": null
+            },
+            {
+                "name": "MASTERCARD",
+                "walletType": null,
+                "pspBrandName": "MASTER",
+                "gatewayMerchantId": "8a8394c73f133b85013f13df0135044b",
+                "integrity": null,
+                "tenderType": "MASTERCARD",
+                "supportedCardNetwork": "masterCard",
+                "icons": [
+                    "https://www.ikea.com/global/assets/logos/external-payment-providers/master-card.svg"
+                ],
+                "participatingBanks": null,
+                "savedTokens": null,
+                "preSelected": true,
+                "captureMechanism": "DIRECT",
+                "psp": "ACI",
+                "displayBrandName": null,
+                "minValuePerTx": 0,
+                "maxValuePerTx": null
+            },
+            {
+                "name": "AMEX",
+                "walletType": null,
+                "pspBrandName": "AMEX",
+                "gatewayMerchantId": "8a8394c73f133b85013f13df0135044b",
+                "integrity": null,
+                "tenderType": "AMEX",
+                "supportedCardNetwork": "amex",
+                "icons": [
+                    "https://www.ikea.com/global/assets/logos/external-payment-providers/american-express.svg"
+                ],
+                "participatingBanks": null,
+                "savedTokens": null,
+                "preSelected": true,
+                "captureMechanism": "DIRECT",
+                "psp": "ACI",
+                "displayBrandName": null,
+                "minValuePerTx": 0,
+                "maxValuePerTx": null
+            }
+        ],
+        "inputFields": null,
+        "hostedExternally": true,
+        "canBeCombinedWith": null,
+        "isValid": true,
+        "notValidReasonCode": null,
+        "invalidReasonCodeKey": null,
+        "businessRules": {},
+        "preSelected": true
+    },
+    {
+        "paymentOptionId": "9c3823c1-2535-4000-a74f-4b7ce77bc7ef",
+        "optionCategory": "CREDITCARD",
+        "displayRule": "GROUP",
+        "displayType": "WALLET_TYPE",
+        "displayCategory": "GOOGLEPAY",
+        "isTokenizationEnabled": false,
+        "brands": [
+            {
+                "name": "VISA",
+                "walletType": null,
+                "pspBrandName": "VISA",
+                "gatewayMerchantId": "8a8394c73f133b85013f13df0135044b",
+                "integrity": null,
+                "tenderType": "VISA",
+                "supportedCardNetwork": "visa",
+                "icons": [
+                    "https://www.ikea.com/global/assets/logos/external-payment-providers/visa.svg"
+                ],
+                "participatingBanks": null,
+                "savedTokens": null,
+                "preSelected": false,
+                "captureMechanism": "DIRECT",
+                "psp": "ACI",
+                "displayBrandName": null,
+                "minValuePerTx": 0,
+                "maxValuePerTx": null
+            },
+            {
+                "name": "MASTERCARD",
+                "walletType": null,
+                "pspBrandName": "MASTER",
+                "gatewayMerchantId": "8a8394c73f133b85013f13df0135044b",
+                "integrity": null,
+                "tenderType": "MASTERCARD",
+                "supportedCardNetwork": "masterCard",
+                "icons": [
+                    "https://www.ikea.com/global/assets/logos/external-payment-providers/master-card.svg"
+                ],
+                "participatingBanks": null,
+                "savedTokens": null,
+                "preSelected": false,
+                "captureMechanism": "DIRECT",
+                "psp": "ACI",
+                "displayBrandName": null,
+                "minValuePerTx": 0,
+                "maxValuePerTx": null
+            },
+            {
+                "name": "AMEX",
+                "walletType": null,
+                "pspBrandName": "AMEX",
+                "gatewayMerchantId": "8a8394c73f133b85013f13df0135044b",
+                "integrity": null,
+                "tenderType": "AMEX",
+                "supportedCardNetwork": "amex",
+                "icons": [
+                    "https://www.ikea.com/global/assets/logos/external-payment-providers/american-express.svg"
+                ],
+                "participatingBanks": null,
+                "savedTokens": null,
+                "preSelected": false,
+                "captureMechanism": "DIRECT",
+                "psp": "ACI",
+                "displayBrandName": null,
+                "minValuePerTx": 0,
+                "maxValuePerTx": null
+            }
+        ],
+        "inputFields": null,
+        "hostedExternally": true,
+        "canBeCombinedWith": null,
+        "isValid": true,
+        "notValidReasonCode": null,
+        "invalidReasonCodeKey": null,
+        "businessRules": {},
+        "preSelected": false
+    }
+]
+'''
+    items = json.loads(mock_response)
+    return items
+
 
 @app.get("/api/sessions/{session_id}/messages", response_model=List[ChatMessage])
 async def get_session_messages(session_id: str, db: Database = Depends(get_database)):
