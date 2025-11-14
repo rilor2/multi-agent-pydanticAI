@@ -31,7 +31,7 @@ import dotenv
 dotenv.load_dotenv()
 
 model = GeminiModel(
-    "gemini-2.5-pro",
+    "gemini-2.5-flash",
     provider=GoogleVertexProvider(),
 )
 
@@ -87,6 +87,7 @@ class OrderResult(BaseModel):
     client_details: str = Field(description="name, surname and email")
     delivery_details: str = Field(description="delivery address")
     payment_method: str = Field(description="payment method to use", default="EXPRESS") 
+    payment_requested: bool = Field(description="payment requested", default=False) 
 
 class CatalogResult(BaseModel):
     """Result from the catalog search"""
@@ -298,6 +299,7 @@ main_agent = Agent(
         "3. Order expert(order_expert tool):\n"
         "   - When user explicitly asks for ordering a specific Ikea furniture by Ikea name\n"
         "   - When user select an Ikea item to buy or to get\n"
+        "   - When user confirms they want to proceed with the order\n"
         "IMPORTANT: For general conversation, greetings, or simple questions, DO NOT use any specialized tools.\n\n"
         "CRITICAL OUTPUT INSTRUCTION:\n"
         "The user will ONLY see the 'answer' field of your response.\n"
@@ -427,12 +429,14 @@ async def order_expert(
         message = (
             f"Generate an order template with random client_details, "
             f"delivery_details, and payment method set to EXPRESS."
+            f"ONLY WHERN the user confirms the order, set payment_requested to True, and ask the User to pay, otherwise payment_requested is False."
         )
         result = await order_agent.run(
             message,
             deps=ctx.deps,
             usage=ctx.usage,
         )
+        print(result.output)
         return result.output
 
     except Exception as e:
@@ -468,6 +472,7 @@ main_agent_stream = Agent(
         "3. Order expert(order_expert tool):\n"
         "   - When user explicitly asks for ordering a specific Ikea furniture by Ikea name\n"
         "   - When user select an Ikea item to buy or to get\n"
+        "   - When user confirms they want to proceed with the order\n"
         "IMPORTANT: For general conversation, greetings, or simple questions, DO NOT use any specialized tools.\n"
         "Just respond naturally using your own knowledge.\n\n"
         "FORMATTING INSTRUCTIONS:\n"
